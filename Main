@@ -1,0 +1,230 @@
+import pgzrun
+import random
+import time
+
+WIDTH = 810
+HEIGHT = 456
+TITLE = "Click al gato"
+
+# --- Personaje ---
+background = Actor("apocalipsis")      
+Eireen = Actor("parada_derecha", (50, 370))
+Eireen.vida = 1
+Eireen.ataque = 1
+enemigos = []
+
+Eireen.direccion = "derecha"
+Eireen.atacando = False
+
+zombi_left = ["zombie1_izquierda", "zombie2_izquierda", "zombie3_izquierda"]
+zombi_right = ["zombie1", "zombie2", "zombie3"]
+
+# --- Proyectiles ---
+ataques = []
+
+score = 0
+vida = []
+nivel = 1
+zombie_nivel = 0
+meta = 5
+poder = 5
+cantidad = 1
+
+def draw():
+    if Eireen.vida <= 0:
+        background.draw()
+        screen.draw.text("Game Over", center = (390, 220), color = (32, 125, 84), fontsize = 80)
+    else:
+        background.draw()
+
+        for ataque in ataques:
+            ataque.draw()
+            
+        for enemigo in enemigos:
+            enemigo.draw()
+            
+        for i in vida:
+            i.draw()
+            
+        Eireen.draw()
+        screen.draw.text("Puntaje: "+ str(score), center = (70, 60), color = (32, 125, 84) , fontsize = 30)
+        screen.draw.text("Vida: "+ str(Eireen.vida), center = (760, 60), color = (32, 125, 84), fontsize = 30)
+        screen.draw.text("Nivel: "+ str(nivel), center = (60, 90), color = (32, 125, 84), fontsize = 30)
+    
+def terminar_ataque():
+    Eireen.atacando = False
+    
+
+def crear_enemigos():
+    cantidad = 1
+    lado = random.randint(0, 1)
+    
+    if lado == 0:
+        sprite = random.choice(zombi_right) 
+        nuevo_zombie = Actor(sprite, (-50, 370))
+        nuevo_zombie.velocidad = 0.7
+        nuevo_zombie.bonus = random.randint(0,1)
+        if score >= 20:
+            nuevo_zombie.vida = random.randint(1,15)
+        else:
+            nuevo_zombie.vida = 1 
+    else:
+        sprite = random.choice(zombi_left)
+        nuevo_zombie = Actor(sprite, (WIDTH + 50, 370))
+        nuevo_zombie.velocidad = -0.7
+        nuevo_zombie.bonus = random.randint(0,1)
+        if score >= 5:
+            nuevo_zombie.vida = random.randint(1,8)
+        else:
+            nuevo_zombie.vida = 1 
+    
+    nuevo_zombie.tiempo_muerte = None
+
+    
+    nuevo_zombie.pausa = False
+    nuevo_zombie.tiempo_pausa = 0
+
+    enemigos.append(nuevo_zombie)
+
+
+clock.schedule_interval(crear_enemigos, 4.0)
+
+
+def movimiento():
+    if Eireen.atacando:
+        return
+
+    if (keyboard.left or keyboard.a) and Eireen.x > 20:
+        Eireen.x -= 2.5
+        Eireen.image = 'correr_izquierda'
+        Eireen.direccion = "izquierda"
+
+    elif (keyboard.right or keyboard.d) and Eireen.x < 790:
+        Eireen.x += 2.5
+        Eireen.image = 'correr_derecha'
+        Eireen.direccion = "derecha"
+
+    else:
+        if Eireen.direccion == "izquierda":
+            Eireen.image = 'parada_izquierda'
+        else:
+            Eireen.image = 'parada_derecha'
+        
+
+def on_key_down(key):
+    if not Eireen.atacando:
+        if key == keys.SPACE or key == keys.UP or key == keys.W:
+            Eireen.y = 300
+            animate(Eireen, tween='bounce_end', duration=1, y=370)
+
+
+def on_mouse_down(pos, button):
+    if button == mouse.LEFT and not Eireen.atacando:
+        Eireen.atacando = True
+        
+        bola = Actor("bola_ataque", Eireen.pos)
+        
+        if Eireen.direccion == "derecha":
+            Eireen.image = "atacando_derecha"
+            bola.vx = 8
+        else:
+            Eireen.image = "atacando_izquierda"
+            bola.vx = -8
+            
+        ataques.append(bola)
+        clock.schedule(terminar_ataque, 0.4)
+
+
+def update(dt):
+    movimiento()
+    collision_enemigos()
+    collision_persona()
+    recolectar_bonus()
+    # --- mover ataques ---
+    for ataque in ataques[:]:
+        ataque.x += ataque.vx
+
+        if ataque.x > WIDTH or ataque.x < 0:
+            ataques.remove(ataque)
+
+    # --- mover enemigos ---
+    for enemigo in enemigos[:]:
+
+        if enemigo.image == "explosion":
+            continue
+
+        # 🧟 movimiento tambaleante
+        if not enemigo.pausa:
+            enemigo.x += enemigo.velocidad
+
+            if random.random() < 0.02:
+                enemigo.pausa = True
+                enemigo.tiempo_pausa = time.time() + random.uniform(0.2, 0.5)
+
+        else:
+            if time.time() >= enemigo.tiempo_pausa:
+                enemigo.pausa = False
+
+        if enemigo.x > WIDTH + 100 or enemigo.x < -100:
+            enemigos.remove(enemigo)
+
+    # 💥 eliminar enemigos tras explosión (más rápido)
+    for enemigo in enemigos[:]:
+        if enemigo.image == "explosion" and enemigo.tiempo_muerte:
+            if time.time() >= enemigo.tiempo_muerte:
+                enemigos.remove(enemigo)
+
+    
+def collision_enemigos():
+    global score
+    global nivel
+    global meta
+    global zombie_nivel
+    
+    for enemigo in enemigos:
+
+        if enemigo.image == "explosion":
+            continue
+
+        for ataque in ataques[:]:
+            if ataque.colliderect(enemigo):
+                enemigo.vida -= 1
+                if score >= 7:
+                    if enemigo.bonus == 1 and enemigo.vida <= 0:
+                        heart = Actor("heart", enemigo.pos)
+                        vida.append(heart)
+                if ataque in ataques:
+                    ataques.remove(ataque)
+
+                if enemigo.vida <= 0:
+                    score += 1
+                    zombie_nivel += 1
+                    enemigo.image = "explosion"
+                    enemigo.velocidad = 0
+                    enemigo.tiempo_muerte = time.time() + 0.2
+                
+                if zombie_nivel >= meta:
+                    meta += 3
+                    zombie_nivel = 0
+                    nivel += 1
+                    
+                    if nivel >= poder:
+                        Eireen.ataque += 1
+                    
+                break
+
+
+def collision_persona():
+    for i in enemigos:
+        if Eireen.colliderect(i):
+            enemigos.remove(i)
+            Eireen.vida -= 1
+            break
+
+def recolectar_bonus():
+    for i in vida:
+        if Eireen.colliderect(i):
+            Eireen.vida += 1
+            vida.remove(i)
+            break
+pgzrun.go()
