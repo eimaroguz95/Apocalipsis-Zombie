@@ -1,4 +1,4 @@
-# 🧟 Click al Gato
+# 🧟 Apocalipsis Zombie
 
 Un juego de acción 2D desarrollado con **Pygame Zero** en el que controlas a Eireen, una heroína que debe sobrevivir a oleadas de zombis en un escenario apocalíptico.
 
